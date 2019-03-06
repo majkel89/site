@@ -126,3 +126,54 @@ Method by pattern: `App\Api\Product::pr?duc?List`
 
 
 Internally, all patterns are passed to [`fnmatch()` PHP function](https://php.net/manual/en/function.fnmatch.php). Please read its documentation to better understand how it works.
+
+## Create custom mutator
+
+Suppose you have case in your 
+
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace Your\Custom\Infection\Mutators;
+
+use Infection\Mutator\Util\Mutator;
+use PhpParser\Node;
+
+final class MBString extends Mutator
+{
+    private const FUNCTION_MAPPING = [
+        'mb_strlen' => 'strlen',
+        'mb_strtolower' => 'strtolower',
+        'mb_strtoupper' => 'strtoupper',
+        'mb_parse_str' => 'parse_str',
+        'mb_strpos' => 'strpos',
+    ];
+
+    public function mutate(Node $node)
+    {
+        /** @var Node\Expr\FuncCall $node */
+        $functionName = $this->getFunctionName($node);
+
+        yield new Node\Expr\FuncCall(
+            new Node\Name(self::FUNCTION_MAPPING[$functionName], $node->name->getAttributes()),
+            $node->args,
+            $node->getAttributes()
+        );
+    }
+
+    protected function mutatesNode(Node $node): bool
+    {
+        if (!$node instanceof Node\Expr\FuncCall || !$node->name instanceof Node\Name) {
+            return false;
+        }
+        return isset(self::FUNCTION_MAPPING[$this->getFunctionName($node)]);
+    }
+
+    private function getFunctionName(Node\Expr\FuncCall $node): string
+    {
+        return \strtolower($node->name->toString());
+    }
+}
+```
